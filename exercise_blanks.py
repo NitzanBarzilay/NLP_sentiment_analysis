@@ -139,9 +139,9 @@ def average_one_hots(sent, word_to_ind):  # todo: the input of the simple log-li
     :return: the average one-hot embedding of the tokens in the sentence.
     """
     result = np.zeros((len(word_to_ind), 1))
-    for word in sent:  # todo: check how sent looks
+    for word in sent.text:
         result[word_to_ind[word]] += 1
-    return result / len(sent)
+    return result / len(sent.text)
 
 
 def get_word_to_ind(words_list):
@@ -303,8 +303,7 @@ class LogLinear(nn.Module):
         return self.linear(x)
 
     def predict(self, x):
-        f = self.forward(x)
-        return nn.Sigmoid()(f)
+        return nn.Sigmoid()(x)
 
 
 # ------------------------- training functions -------------
@@ -345,9 +344,11 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         loss = criterion(predictions, labels) #TODO do we need to use predict? maybe now preds and y arent in the same format?
         loss.backward()
         optimizer.step()
+        prediction = model.predict(output)
+        accuracy = prediction  # todo accurace
         running_loss += loss.item()
-        # TODO add prints?
-    return running_loss
+        running_acc += accuracy
+    return running_loss / (counter + 1), running_acc / (counter + 1)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -373,6 +374,7 @@ def evaluate(model, data_iterator, criterion):
     return 1,2 # todo (average loss over all examples, average accuracy over all examples)
 
 
+
 def get_predictions_for_data(model, data_iter):
     """
 
@@ -387,7 +389,6 @@ def get_predictions_for_data(model, data_iter):
     for batch,i in data_iter:  # TODO make sure it works
         data, labels = 3, 2  # TODO get data ??
         predictions.append(model.predict(data))
-
     return predictions
 
 
@@ -406,13 +407,11 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
     loss_dict = dict()
     accuracy_dict = dict()
-
+    train_iterator = data_manager.get_torch_iterator(data_subset=TRAIN)
+    val_iterator = data_manager.get_torch_iterator(data_subset=VAL)
     for i in range(n_epochs):
-        data_iterator = data_manager.get_torch_iterator(data_subset=TRAIN) ##todo?
-        train_loss, train_acc = train_epoch(model, data_iterator , optimizer, criterion)
-
-        data_iterator = data_manager.get_torch_iterator(data_subset=VAL)
-        eval_loss, eval_acc = evaluate(model, data_iterator, criterion)
+        train_loss, train_acc = train_epoch(model, train_iterator, optimizer, criterion)
+        eval_loss, eval_acc = evaluate(model, val_iterator, criterion)  # todo accuracy
         loss_dict[i] = (train_loss, eval_loss)
         accuracy_dict[i] = (train_acc, eval_acc)
 
@@ -423,25 +422,30 @@ def train_log_linear_with_one_hot(n_epochs=20, lr=0.01, weight_decay=0.001):
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    data_manager = DataManager(batch_size=64)
+    data_manager = DataManager(batch_size=64, data_type=ONEHOT_AVERAGE)
     model = LogLinear(len(data_manager.sentiment_dataset.get_word_counts()))
 
     train_model(model, data_manager, n_epochs, lr, weight_decay)
     return
 
 
-def train_log_linear_with_w2v():
+def train_log_linear_with_w2v(n_epochs=20, lr=0.01, weight_decay=0.001, embedding_dim=300):
     """
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
+    data_manager = DataManager(batch_size=64, data_type=W2V_AVERAGE)
+    model = LogLinear(embedding_dim)
+    train_model(model, data_manager, n_epochs, lr, weight_decay)
     return
 
 
-def train_lstm_with_w2v():
+def train_lstm_with_w2v(embedding_dim=300, hidden_dim=100, n_layers=0):
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
+    data_manager = DataManager(batch_size=64, data_type=W2V_SEQUENCE)
+    model = LSTM(embedding_dim, hidden_dim, )
     return
 
 
