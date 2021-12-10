@@ -115,7 +115,11 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    sum_embedding = np.zeros(embedding_dim)
+    for word in sent:
+        embedding = 0 if word not in word_to_vec else word_to_vec[word]
+        sum_embedding += embedding
+    return sum_embedding / len(sent)
 
 
 def get_one_hot(size, ind):
@@ -281,13 +285,19 @@ class LSTM(nn.Module):
     """
 
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
+        super().__init__()
+        self._lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, dropout=dropout,
+                             bidirectional=True, batch_first=True)
+        self.linear = nn.Linear(in_features=hidden_dim * 2, out_features=1)
 
     def forward(self, text):
+        lstm_output = self.__lstm(text)[1]
+        # todo conacat on dimension 0 - torch.unbind
+        output = self.__linear(lstm_output[:, -1, :])
         return
 
     def predict(self, text):
-        return
+        return nn.Sigmoid()(text)
 
 
 class LogLinear(nn.Module):
@@ -333,15 +343,15 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param criterion: the criterion object for the training process.
     return: the accuracy and loss for this epoch
     """
-    model.train() # TODO check
-    running_loss = 0.0 # TODO fix loss and accuracy
-    for batch, i in data_iterator:  # TODO make sure it works
-        data, labels = 3, 2  # TODO get data ??
-
+    model.train()
+    running_loss = 0.0
+    running_acc = 0.0
+    for counter, batch in enumerate(data_iterator):
+        data, labels = batch
         optimizer.zero_grad()  # clear pre-existing gradients
-
-        predictions = model(batch)  # without labels
-        loss = criterion(predictions, labels) #TODO do we need to use predict? maybe now preds and y arent in the same format?
+        output = model(data)  # without labels
+        loss = criterion((output.reshape(output.shape[0])),
+                         labels)  # TODO do we need to use predict? maybe now preds and y arent in the same format?
         loss.backward()
         optimizer.step()
         prediction = model.predict(output)
@@ -359,20 +369,15 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    model.eval()
-    for batch,i in data_iterator:  # TODO make sure it works
-        data, labels = 3, 2  # TODO get data ??
-
-        #optimizer.zero_grad()  # clear pre-existing gradients
-
-        predictions = model(batch)  # without labels
-        loss = criterion(predictions, labels)
+    model.eval() # TODO please work
+    running_loss = 0.0
+    for counter, batch in enumerate(data_iterator):  # TODO make sure it works
+        data, labels = batch
+        predictions = model(data)  # without labels
+        loss = criterion((predictions.reshape(predictions.shape[0])), labels)
         loss.backward()
-        #optimizer.step()
-
-        # TODO add prints?
-    return 1,2 # todo (average loss over all examples, average accuracy over all examples)
-
+        running_loss += loss.item()
+    return running_loss / (counter + 1)
 
 
 def get_predictions_for_data(model, data_iter):
@@ -386,11 +391,11 @@ def get_predictions_for_data(model, data_iter):
     :return:
     """
     predictions = []
-    for batch,i in data_iter:  # TODO make sure it works
-        data, labels = 3, 2  # TODO get data ??
+    name = 1
+    for i, batch in enumerate(data_iter):  # TODO make sure it works
+        data, labels = batch
         predictions.append(model.predict(data))
     return predictions
-
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -414,8 +419,7 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         eval_loss, eval_acc = evaluate(model, val_iterator, criterion)  # todo accuracy
         loss_dict[i] = (train_loss, eval_loss)
         accuracy_dict[i] = (train_acc, eval_acc)
-
-    return #todo ?
+    # todo prints
 
 
 def train_log_linear_with_one_hot(n_epochs=20, lr=0.01, weight_decay=0.001):
